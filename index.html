@@ -1,0 +1,1080 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>知行计划团队看板</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', sans-serif;
+            background: #f5f7fa;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .container {
+            display: flex;
+            height: 100vh;
+        }
+
+        .sidebar {
+            width: 280px;
+            background: #fff;
+            border-right: 1px solid #e1e5eb;
+            overflow-y: auto;
+            flex-shrink: 0;
+        }
+
+        .sidebar-header {
+            padding: 20px;
+            border-bottom: 1px solid #e1e5eb;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .sidebar-header h1 {
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .loading-state {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 40px 20px;
+            color: #666;
+            font-size: 14px;
+        }
+
+        .loading-spinner {
+            width: 20px;
+            height: 20px;
+            border: 2px solid #e0e0e0;
+            border-top-color: #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 10px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .project-list {
+            list-style: none;
+        }
+
+        .project-item {
+            padding: 16px 20px;
+            border-bottom: 1px solid #f0f2f5;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .project-item:hover {
+            background: #f8f9fb;
+        }
+
+        .project-item.active {
+            background: #e8f0fe;
+            border-left: 3px solid #667eea;
+        }
+
+        .project-name {
+            font-size: 14px;
+            font-weight: 500;
+            color: #333;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .progress-indicator {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            color: #666;
+        }
+
+        .progress-dots {
+            display: flex;
+            gap: 2px;
+        }
+
+        .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #e0e0e0;
+        }
+
+        .dot.filled {
+            background: #667eea;
+        }
+
+        .main-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 24px;
+        }
+
+        .project-header {
+            background: #fff;
+            padding: 24px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        }
+
+        .project-title {
+            font-size: 24px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 12px;
+        }
+
+        .project-meta {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .deadline-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            background: #fff3cd;
+            color: #856404;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 500;
+        }
+
+        .deadline-badge.urgent {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .award-info {
+            padding: 6px 12px;
+            background: #d4edda;
+            color: #155724;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 500;
+        }
+
+        .overall-progress {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-left: auto;
+        }
+
+        .progress-bar {
+            width: 150px;
+            height: 10px;
+            background: #e9ecef;
+            border-radius: 5px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            transition: width 0.3s;
+        }
+
+        .progress-text {
+            font-size: 13px;
+            color: #666;
+            min-width: 40px;
+        }
+
+        .task-list {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .task-card {
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+            overflow: hidden;
+        }
+
+        .task-card.status-inprogress {
+            border-left: 4px solid #667eea;
+        }
+
+        .task-card.status-completed {
+            border-left: 4px solid #28a745;
+        }
+
+        .task-card.status-completed .task-title {
+            text-decoration: line-through;
+            color: #999;
+        }
+
+        .task-header {
+            padding: 20px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            cursor: pointer;
+        }
+
+        .task-title {
+            flex: 1;
+            font-size: 16px;
+            font-weight: 500;
+            color: #333;
+        }
+
+        .task-meta {
+            display: flex;
+            gap: 16px;
+            align-items: center;
+        }
+
+        .assignee-select {
+            padding: 6px 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 13px;
+            background: #fff;
+            cursor: pointer;
+        }
+
+        .priority-select {
+            padding: 6px 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 13px;
+            background: #fff;
+            cursor: pointer;
+        }
+
+        .priority-select option[value="high"] {
+            background: #fee;
+            color: #dc3545;
+        }
+
+        .priority-select option[value="medium"] {
+            background: #fff8e1;
+            color: #f59e0b;
+        }
+
+        .priority-select option[value="low"] {
+            background: #f0fdf4;
+            color: #10b981;
+        }
+
+        .deadline {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 13px;
+            padding: 6px 12px;
+            border-radius: 6px;
+        }
+
+        .deadline.normal {
+            color: #666;
+            background: #f8f9fa;
+        }
+
+        .deadline.warning {
+            color: #856404;
+            background: #fff3cd;
+        }
+
+        .deadline.overdue {
+            color: #721c24;
+            background: #f8d7da;
+        }
+
+        .status-badge {
+            padding: 6px 16px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: none;
+        }
+
+        .status-badge.todo {
+            background: #e9ecef;
+            color: #495057;
+        }
+
+        .status-badge.inprogress {
+            background: #e7f3ff;
+            color: #0066cc;
+        }
+
+        .status-badge.completed {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .task-details {
+            padding: 0 20px 20px;
+            display: none;
+        }
+
+        .task-details.expanded {
+            display: block;
+        }
+
+        .task-description {
+            padding: 16px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            font-size: 14px;
+            color: #555;
+            margin-bottom: 16px;
+            line-height: 1.6;
+        }
+
+        .subtask-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .subtask-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 16px;
+            background: #f8f9fb;
+            border-radius: 8px;
+        }
+
+        .subtask-name {
+            flex: 1;
+            font-size: 14px;
+            color: #333;
+            border: none;
+            background: transparent;
+            padding: 4px 8px;
+            border-radius: 4px;
+        }
+
+        .subtask-name:focus {
+            outline: none;
+            background: #fff;
+            box-shadow: 0 0 0 2px #667eea;
+        }
+
+        .subtask-actions {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .add-subtask-btn {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 10px 16px;
+            background: transparent;
+            border: 2px dashed #ddd;
+            border-radius: 8px;
+            color: #666;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+            width: 100%;
+            margin-top: 12px;
+        }
+
+        .add-subtask-btn:hover {
+            border-color: #667eea;
+            color: #667eea;
+            background: #f0f3ff;
+        }
+
+        .level-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            background: #667eea;
+            color: white;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+            margin-right: 8px;
+        }
+
+        .level-2 .level-badge {
+            background: #f59e0b;
+        }
+
+        .level-3 .level-badge {
+            background: #10b981;
+        }
+
+        .level-2-list, .level-3-list {
+            margin-left: 40px;
+            border-left: 3px solid #e1e5eb;
+            padding-left: 15px;
+            margin-top: 10px;
+        }
+
+        .level-3-list {
+            margin-left: 40px;
+        }
+
+        .delete-btn {
+            padding: 4px 8px;
+            background: transparent;
+            border: none;
+            color: #dc3545;
+            cursor: pointer;
+            border-radius: 4px;
+            font-size: 16px;
+            opacity: 0.6;
+            transition: opacity 0.2s;
+        }
+
+        .delete-btn:hover {
+            opacity: 1;
+            background: #fee;
+        }
+
+        .delete-task-btn {
+            padding: 4px 8px;
+            background: transparent;
+            border: none;
+            color: #dc3545;
+            cursor: pointer;
+            border-radius: 4px;
+            font-size: 16px;
+            opacity: 0.6;
+            transition: opacity 0.2s;
+            margin-left: 8px;
+        }
+
+        .delete-task-btn:hover {
+            opacity: 1;
+            background: #fee;
+        }
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                flex-direction: column;
+            }
+
+            .sidebar {
+                width: 100%;
+                max-height: 200px;
+                border-right: none;
+                border-bottom: 1px solid #e1e5eb;
+            }
+
+            .project-meta {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 10px;
+            }
+
+            .overall-progress {
+                margin-left: 0;
+                width: 100%;
+            }
+
+            .progress-bar {
+                flex: 1;
+            }
+        }
+
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #c1c1c1;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #a1a1a1;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <h1>📋 知行计划团队看板</h1>
+            </div>
+            <div id="projectListLoading" class="loading-state">
+                <div class="loading-spinner"></div>
+                <span>加载项目中...</span>
+            </div>
+            <ul class="project-list" id="projectList"></ul>
+        </div>
+
+        <div class="main-content" id="mainContent">
+            <div class="loading-state">
+                <div class="loading-spinner"></div>
+                <span>加载任务详情...</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const SUPABASE_URL = 'https://vsfjpvaateulsdntdpmk.supabase.co';
+        const SUPABASE_ANON_KEY = 'sb_publishable_GSB8F1i-qyfXWZdzsvzVpQ_wFQEiOmE';
+        
+        const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        const TEAM_MEMBERS = ['成员 A', '成员 B', '成员 C', '成员 D', '成员 E', '成员 F', '成员 G'];
+
+        const INITIAL_PROJECTS = [
+            { id: 1, name: '西门子爱绿教育计划', deadline: '2026-05-31', award: '全国金奖 10000 元' },
+            { id: 2, name: '华夏基金大学生公益计划', deadline: '2026-05-30', award: '全国金奖 10000 元' },
+            { id: 3, name: '汤臣倍健营养支教计划', deadline: '2026-05-31', award: '优秀团队 3000 元' },
+            { id: 4, name: '百雀羚暑期 AIGC 支教', deadline: '2026-05-31', award: '一等奖 10000 元' },
+            { id: 5, name: '百雀羚 AIGC 大赛', deadline: '2026-07-20', award: '金奖 10000 元' },
+            { id: 6, name: 'Change Maker 农业文化遗产', deadline: '2026-06-30', award: 'FAO 联合颁证' },
+            { id: 7, name: 'Youth4Rural 数字乡村', deadline: '2026-06-15', award: 'UNESCO 联合颁证' }
+        ];
+
+        const INITIAL_TASKS = [
+            { project_id: 1, name: '项目申报' },
+            { project_id: 1, name: '5 节爱绿主题课堂' },
+            { project_id: 1, name: '1 场无碍共融主题活动' },
+            { project_id: 1, name: '匹配青年导师' },
+            { project_id: 1, name: '自媒体传播' },
+            { project_id: 1, name: '提交实践成果资料' },
+            { project_id: 2, name: '项目申报' },
+            { project_id: 2, name: '4 节金融素养课堂' },
+            { project_id: 2, name: '1 节 AI 课 + AI 实践行动' },
+            { project_id: 2, name: '线上线下传播' },
+            { project_id: 2, name: '提交成果资料与总结视频' },
+            { project_id: 3, name: '项目申报' },
+            { project_id: 3, name: '5 节乡村儿童营养课堂' },
+            { project_id: 3, name: '营养与饮食健康调研' },
+            { project_id: 3, name: '点亮家乡美食地图' },
+            { project_id: 3, name: '匹配青年导师' },
+            { project_id: 3, name: '自媒体传播' },
+            { project_id: 3, name: '提交实践成果资料' },
+            { project_id: 4, name: '项目申报' },
+            { project_id: 4, name: '开设 AIGC 课程' },
+            { project_id: 4, name: 'AIGC 作品征集' },
+            { project_id: 4, name: '传统文化调研与传播' },
+            { project_id: 4, name: '累计 20 份 AIGC 作品' },
+            { project_id: 4, name: '自媒体传播与成果资料' },
+            { project_id: 4, name: '制作总结视频' },
+            { project_id: 5, name: '预报名', deadline: '2026-07-20' },
+            { project_id: 5, name: '参与 AIGC 培训' },
+            { project_id: 5, name: '海报赛道作品', deadline: '2026-07-20' },
+            { project_id: 5, name: '视频赛道作品', deadline: '2026-07-20' },
+            { project_id: 5, name: '传播成果', deadline: '2026-07-20' },
+            { project_id: 6, name: '项目申报' },
+            { project_id: 6, name: '农业文化遗产调研报告' },
+            { project_id: 6, name: '青年创新方案' },
+            { project_id: 6, name: '主题宣传视频' },
+            { project_id: 6, name: 'AI 创意宣传海报' },
+            { project_id: 6, name: '提交实践成果资料' },
+            { project_id: 7, name: '项目申报' },
+            { project_id: 7, name: '乡村新农人主题调研' },
+            { project_id: 7, name: '新农人故事短视频' },
+            { project_id: 7, name: '数字乡村创新方案' },
+            { project_id: 7, name: '种子教师赋能' },
+            { project_id: 7, name: '提交实践成果资料' }
+        ];
+
+        let currentProjectId = 1;
+        let projects = [];
+        let tasks = [];
+        let realtimeSubscription = null;
+        let isLocalUpdate = false; // 标记是否是本地操作
+
+        async function initializeData() {
+            const { data: existingProjects } = await supabaseClient.from('projects').select('*');
+            
+            if (!existingProjects || existingProjects.length === 0) {
+                await supabaseClient.from('projects').insert(INITIAL_PROJECTS);
+                projects = INITIAL_PROJECTS;
+                
+                const tasksWithIds = INITIAL_TASKS.map(t => ({
+                    ...t,
+                    id: crypto.randomUUID(),
+                    assignee: '',
+                    deadline: t.deadline || null,
+                    status: 'todo',
+                    priority: 'medium',
+                    created_at: new Date().toISOString()
+                }));
+                
+                await supabaseClient.from('tasks').insert(tasksWithIds);
+                tasks = tasksWithIds;
+            } else {
+                projects = existingProjects;
+                const { data: existingTasks } = await supabaseClient.from('tasks').select('*').order('created_at', { ascending: true });
+                tasks = existingTasks || [];
+            }
+        }
+
+        function subscribeToRealtime() {
+            realtimeSubscription = supabaseClient
+                .channel('tasks-channel')
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, 
+                    async (payload) => {
+                        if (payload.eventType === 'INSERT') {
+                            // 检查是否已经存在（避免重复添加）
+                            const exists = tasks.find(t => t.id === payload.new.id);
+                            if (!exists) {
+                                tasks.push(payload.new);
+                                renderProjectList();
+                                renderProjectDetail();
+                            }
+                        } else if (payload.eventType === 'UPDATE') {
+                            const index = tasks.findIndex(t => t.id === payload.new.id);
+                            if (index !== -1) tasks[index] = payload.new;
+                            renderProjectList();
+                            renderProjectDetail();
+                        } else if (payload.eventType === 'DELETE') {
+                            tasks = tasks.filter(t => t.id !== payload.old.id);
+                            renderProjectList();
+                            renderProjectDetail();
+                        }
+                    }
+                )
+                .subscribe();
+        }
+
+        function getTaskCount(projectId) {
+            const projectTasks = tasks.filter(t => t.project_id === projectId && !t.parent_task_id);
+            let total = projectTasks.length;
+            let completed = projectTasks.filter(t => t.status === 'completed').length;
+            
+            projectTasks.forEach(task => {
+                const subtasks = tasks.filter(t => t.parent_task_id === task.id);
+                total += subtasks.length;
+                completed += subtasks.filter(t => t.status === 'completed').length;
+                
+                // 统计二级和三级子任务
+                subtasks.forEach(subtask => {
+                    const level2Subtasks = tasks.filter(t => t.parent_task_id === subtask.id);
+                    total += level2Subtasks.length;
+                    completed += level2Subtasks.filter(t => t.status === 'completed').length;
+                    
+                    level2Subtasks.forEach(level2Subtask => {
+                        const level3Subtasks = tasks.filter(t => t.parent_task_id === level2Subtask.id);
+                        total += level3Subtasks.length;
+                        completed += level3Subtasks.filter(t => t.status === 'completed').length;
+                    });
+                });
+            });
+            
+            return { completed, total };
+        }
+
+        function calculateProjectProgress(projectId) {
+            const { completed, total } = getTaskCount(projectId);
+            return total === 0 ? 0 : Math.round((completed / total) * 100);
+        }
+
+        function getDeadlineStatus(deadline) {
+            if (!deadline) return 'normal';
+            const today = new Date();
+            const deadlineDate = new Date(deadline);
+            const diffDays = Math.ceil((deadlineDate - today) / (1000 * 60 * 60 * 24));
+            if (diffDays < 0) return 'overdue';
+            if (diffDays <= 7) return 'warning';
+            return 'normal';
+        }
+
+        function formatDeadline(deadline) {
+            if (!deadline) return '';
+            const date = new Date(deadline);
+            const today = new Date();
+            const diffDays = Math.ceil((date - today) / (1000 * 60 * 60 * 24));
+            if (diffDays < 0) return `已逾期 ${Math.abs(diffDays)}天`;
+            if (diffDays === 0) return '今天截止';
+            if (diffDays === 1) return '明天截止';
+            if (diffDays <= 7) return `${diffDays}天后截止`;
+            return `${date.getMonth() + 1}月${date.getDate()}日`;
+        }
+
+        function renderProjectList() {
+            const container = document.getElementById('projectList');
+            document.getElementById('projectListLoading').style.display = 'none';
+            container.innerHTML = '';
+
+            projects.forEach(project => {
+                const { completed, total } = getTaskCount(project.id);
+                const li = document.createElement('li');
+                li.className = `project-item ${project.id === currentProjectId ? 'active' : ''}`;
+                li.onclick = () => {
+                    currentProjectId = project.id;
+                    renderProjectList();
+                    renderProjectDetail();
+                };
+
+                let dotsHtml = '';
+                for (let i = 0; i < Math.min(total, 6); i++) {
+                    dotsHtml += `<span class="dot ${i < completed ? 'filled' : ''}"></span>`;
+                }
+
+                li.innerHTML = `
+                    <div class="project-name">
+                        <span>${project.name}</span>
+                    </div>
+                    <div class="progress-indicator">
+                        <span class="progress-dots">${dotsHtml}</span>
+                        <span>${completed}/${total}</span>
+                    </div>
+                `;
+                container.appendChild(li);
+            });
+        }
+
+        function renderProjectDetail() {
+            const project = projects.find(p => p.id === currentProjectId);
+            if (!project) return;
+
+            const container = document.getElementById('mainContent');
+            const progress = calculateProjectProgress(project.id);
+            const deadlineStatus = getDeadlineStatus(project.deadline);
+
+            const projectTasks = tasks.filter(t => t.project_id === project.id && !t.parent_task_id);
+            
+            // 按紧急度排序：high > medium > low
+            const priorityOrder = { high: 0, medium: 1, low: 2 };
+            projectTasks.sort((a, b) => {
+                const aPriority = a.priority || 'medium';
+                const bPriority = b.priority || 'medium';
+                return priorityOrder[aPriority] - priorityOrder[bPriority];
+            });
+
+            container.innerHTML = `
+                <div class="project-header">
+                    <h1 class="project-title">${project.name}</h1>
+                    <div class="project-meta">
+                        ${project.deadline ? `
+                            <span class="deadline-badge ${deadlineStatus}">
+                                ${deadlineStatus === 'overdue' ? '⚠️' : '📅'} 
+                                申报截止：${formatDeadline(project.deadline)}
+                            </span>
+                        ` : ''}
+                        ${project.award ? `<span class="award-info">🏆 ${project.award}</span>` : ''}
+                        <div class="overall-progress">
+                            <div class="progress-bar">
+                                <div class="progress-fill" style="width: ${progress}%"></div>
+                            </div>
+                            <span class="progress-text">${progress}%</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="task-list">
+                    ${projectTasks.map((task, index) => renderTaskCard(task, index)).join('')}
+                    <button class="add-task-btn" data-project-id="${project.id}">
+                        <span class="level-badge" style="background: #667eea; margin-right: 6px;">一级</span>
+                        添加新任务
+                    </button>
+                </div>
+            `;
+
+            attachTaskEvents();
+        }
+
+        function renderTaskCard(task, index) {
+            const deadlineStatus = getDeadlineStatus(task.deadline);
+            const statusLabels = { todo: '待办', inprogress: '进行中', completed: '已完成' };
+
+            return `
+                <div class="task-card status-${task.status}" data-task-id="${task.id}">
+                    <div class="task-header">
+                        <span class="task-title">${task.name}</span>
+                        <div class="task-meta">
+                            <select class="priority-select" data-task-id="${task.id}">
+                                <option value="high" ${task.priority === 'high' ? 'selected' : ''}>🔴 高</option>
+                                <option value="medium" ${task.priority === 'medium' ? 'selected' : ''}>🟡 中</option>
+                                <option value="low" ${task.priority === 'low' ? 'selected' : ''}>🟢 低</option>
+                            </select>
+                            <select class="assignee-select" data-task-id="${task.id}">
+                                <option value="">负责人</option>
+                                ${TEAM_MEMBERS.map(m => `<option value="${m}" ${task.assignee === m ? 'selected' : ''}>${m}</option>`).join('')}
+                            </select>
+                            ${task.deadline ? `
+                                <span class="deadline ${deadlineStatus}">
+                                    ${deadlineStatus === 'warning' ? '⚠️' : deadlineStatus === 'overdue' ? '⚠️' : '📅'}
+                                    ${formatDeadline(task.deadline)}
+                                </span>
+                            ` : ''}
+                            <button class="status-badge ${task.status}" data-task-id="${task.id}">
+                                ${statusLabels[task.status]}
+                            </button>
+                            <button class="delete-task-btn" data-task-id="${task.id}" title="删除任务">×</button>
+                        </div>
+                    </div>
+                    <div class="task-details">
+                        ${task.description ? `<div class="task-description">${task.description}</div>` : ''}
+                        <div style="margin-bottom: 12px;">
+                            <button class="add-subtask-btn" style="width: auto; padding: 8px 16px;" data-task-id="${task.id}">
+                                 添加二级子任务
+                            </button>
+                        </div>
+                        <div class="subtask-list">
+                            ${(tasks.filter(t => t.parent_task_id === task.id) || []).map(subtask => `
+                                <div class="subtask-item level-2">
+                                    <span class="level-badge">二级</span>
+                                    <input type="text" class="subtask-name" value="${subtask.name || ''}" placeholder="子任务名称" data-subtask-id="${subtask.id}">
+                                    <select class="assignee-select" data-task-id="${task.id}" data-subtask-id="${subtask.id}">
+                                        <option value="">负责人</option>
+                                        ${TEAM_MEMBERS.map(m => `<option value="${m}" ${subtask.assignee === m ? 'selected' : ''}>${m}</option>`).join('')}
+                                    </select>
+                                    <button class="status-badge ${subtask.status}" data-task-id="${task.id}" data-subtask-id="${subtask.id}">
+                                        ${statusLabels[subtask.status]}
+                                    </button>
+                                    <button class="delete-btn" data-subtask-id="${subtask.id}">×</button>
+                                </div>
+                                <div class="subtask-list level-3-list">
+                                    ${(tasks.filter(t => t.parent_task_id === subtask.id) || []).map(level3Subtask => `
+                                        <div class="subtask-item level-3">
+                                            <span class="level-badge">三级</span>
+                                            <input type="text" class="subtask-name" value="${level3Subtask.name || ''}" placeholder="子任务名称" data-subtask-id="${level3Subtask.id}">
+                                            <select class="assignee-select" data-task-id="${task.id}" data-subtask-id="${level3Subtask.id}">
+                                                <option value="">负责人</option>
+                                                ${TEAM_MEMBERS.map(m => `<option value="${m}" ${level3Subtask.assignee === m ? 'selected' : ''}>${m}</option>`).join('')}
+                                            </select>
+                                            <button class="status-badge ${level3Subtask.status}" data-task-id="${task.id}" data-subtask-id="${level3Subtask.id}">
+                                                ${statusLabels[level3Subtask.status]}
+                                            </button>
+                                            <button class="delete-btn" data-subtask-id="${level3Subtask.id}">×</button>
+                                        </div>
+                                    `).join('')}
+                                    <button class="add-subtask-btn" style="margin-left: 20px; font-size: 12px; padding: 4px 8px;" data-task-id="${subtask.id}">
+                                         添加三级子任务
+                                    </button>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function attachTaskEvents() {
+            document.querySelectorAll('.task-header').forEach(header => {
+                header.addEventListener('click', (e) => {
+                    if (e.target.classList.contains('status-badge') || e.target.classList.contains('assignee-select')) return;
+                    const card = header.closest('.task-card');
+                    const details = card.querySelector('.task-details');
+                    details.classList.toggle('expanded');
+                });
+            });
+
+            document.querySelectorAll('.status-badge').forEach(btn => {
+                btn.addEventListener('click', async (e) => {
+                    e.stopPropagation();
+                    const taskId = btn.dataset.taskId;
+                    const subtaskId = btn.dataset.subtaskId;
+                    const statusOrder = ['todo', 'inprogress', 'completed'];
+                    
+                    let updateData;
+                    if (subtaskId) {
+                        const task = tasks.find(t => t.id === subtaskId);
+                        const currentIdx = statusOrder.indexOf(task.status);
+                        updateData = { status: statusOrder[(currentIdx + 1) % 3] };
+                        tasks.find(t => t.id === subtaskId).status = updateData.status;
+                        await supabaseClient.from('tasks').update(updateData).eq('id', subtaskId);
+                    } else {
+                        const task = tasks.find(t => t.id === taskId);
+                        const currentIdx = statusOrder.indexOf(task.status);
+                        updateData = { status: statusOrder[(currentIdx + 1) % 3] };
+                        tasks.find(t => t.id === taskId).status = updateData.status;
+                        await supabaseClient.from('tasks').update(updateData).eq('id', taskId);
+                    }
+                    // 立即更新 UI
+                    renderProjectList();
+                    renderProjectDetail();
+                });
+            });
+
+            document.querySelectorAll('.assignee-select').forEach(select => {
+                select.addEventListener('change', async (e) => {
+                    e.stopPropagation();
+                    const taskId = select.dataset.taskId;
+                    const subtaskId = select.dataset.subtaskId;
+                    const updateData = { assignee: select.value };
+                    
+                    if (subtaskId) {
+                        tasks.find(t => t.id === subtaskId).assignee = updateData.assignee;
+                        await supabaseClient.from('tasks').update(updateData).eq('id', subtaskId);
+                    } else {
+                        tasks.find(t => t.id === taskId).assignee = updateData.assignee;
+                        await supabaseClient.from('tasks').update(updateData).eq('id', taskId);
+                    }
+                });
+            });
+
+            document.querySelectorAll('.priority-select').forEach(select => {
+                select.addEventListener('change', async (e) => {
+                    e.stopPropagation();
+                    const taskId = select.dataset.taskId;
+                    const updateData = { priority: select.value };
+                    
+                    tasks.find(t => t.id === taskId).priority = updateData.priority;
+                    await supabaseClient.from('tasks').update(updateData).eq('id', taskId);
+                    
+                    // 重新排序
+                    const project = projects.find(p => p.id === currentProjectId);
+                    const projectTasks = tasks.filter(t => t.project_id === project.id && !t.parent_task_id);
+                    const priorityOrder = { high: 0, medium: 1, low: 2 };
+                    projectTasks.sort((a, b) => {
+                        const aPriority = a.priority || 'medium';
+                        const bPriority = b.priority || 'medium';
+                        return priorityOrder[aPriority] - priorityOrder[bPriority];
+                    });
+                    
+                    renderProjectList();
+                    renderProjectDetail();
+                });
+            });
+
+            document.querySelectorAll('.add-subtask-btn').forEach(btn => {
+                btn.addEventListener('click', async (e) => {
+                    e.stopPropagation();
+                    const taskId = btn.dataset.taskId;
+                    const buttonText = btn.textContent.trim();
+                    
+                    // 根据按钮文本判断子任务级别
+                    let subtaskLevel = 1;
+                    if (buttonText.includes('二级')) {
+                        subtaskLevel = 2;
+                    } else if (buttonText.includes('三级')) {
+                        subtaskLevel = 3;
+                    }
+                    
+                    const newSubtask = {
+                        id: crypto.randomUUID(),
+                        project_id: currentProjectId,
+                        parent_task_id: taskId,
+                        name: '',
+                        assignee: '',
+                        deadline: null,
+                        status: 'todo',
+                        created_at: new Date().toISOString()
+                    };
+                    
+                    const { error } = await supabaseClient.from('tasks').insert(newSubtask);
+                    if (error) {
+                        console.error('添加子任务失败:', error);
+                    }
+                    // 不立即渲染，等待 Realtime 同步
+                });
+            });
+
+            // 添加新任务按钮
+            document.querySelectorAll('.add-task-btn').forEach(btn => {
+                btn.addEventListener('click', async (e) => {
+                    e.stopPropagation();
+                    const projectId = btn.dataset.projectId;
+                    
+                    const taskName = prompt('请输入任务名称：', '新任务');
+                    if (!taskName) return; // 用户取消或输入为空
+                    
+                    const newTask = {
+                        id: crypto.randomUUID(),
+                        project_id: projectId,
+                        parent_task_id: null,
+                        name: taskName,
+                        description: '',
+                        assignee: '',
+                        deadline: null,
+                        status: 'todo',
+                        priority: 'medium',
+                        created_at: new Date().toISOString()
+                    };
+                    
+                    const { error } = await supabaseClient.from('tasks').insert(newTask);
+                    if (error) {
+                        console.error('添加任务失败:', error);
+                    }
+                    // 不立即渲染，等待 Realtime 同步
+                });
+            });
+
+            // 删除任务按钮（使用事件委托）
+            document.querySelector('.task-list').addEventListener('click', async (e) => {
+                if (e.target.classList.contains('delete-task-btn')) {
+                    const taskId = e.target.dataset.taskId;
+                    
+                    if (!confirm('确定要删除这个任务及其所有子任务吗？')) return;
+                    
+                    const { error } = await supabaseClient.from('tasks').delete().eq('id', taskId);
+                    if (error) {
+                        console.error('删除任务失败:', error);
+                    }
+                    // 不立即渲染，等待 Realtime 同步
+                }
+            });
+
+            // 删除子任务按钮（使用事件委托）
+            document.querySelector('.task-list').addEventListener('click', async (e) => {
+                if (e.target.classList.contains('delete-btn')) {
+                    e.stopPropagation();
+                    const subtaskId = e.target.dataset.subtaskId;
+                    const { error } = await supabaseClient.from('tasks').delete().eq('id', subtaskId);
+                    if (error) {
+                        console.error('删除子任务失败:', error);
+                    }
+                    // 不立即渲染，等待 Realtime 同步
+                }
+            });
+
+            document.querySelectorAll('.subtask-name').forEach(input => {
+                input.addEventListener('blur', async (e) => {
+                    e.stopPropagation();
+                    const subtaskId = input.dataset.subtaskId;
+                    isLocalUpdate = true;
+                    const { error } = await supabaseClient.from('tasks').update({ name: input.value }).eq('id', subtaskId);
+                    if (error) console.error('更新子任务名称失败:', error);
+                });
+            });
+        }
+
+        async function init() {
+            try {
+                await initializeData();
+                subscribeToRealtime();
+                renderProjectList();
+                renderProjectDetail();
+            } catch (error) {
+                console.error('初始化失败:', error);
+                document.getElementById('projectListLoading').innerHTML = 
+                    '<div class="loading-state" style="color: #dc3545;">⚠️ 加载失败，请检查 Supabase 配置</div>';
+            }
+        }
+
+        init();
+    </script>
+</body>
+</html>
